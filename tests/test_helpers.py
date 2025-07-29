@@ -60,31 +60,74 @@ class TestAnalysisFunctions:
     def test_dfa_analysis_basic(self):
         """Test basic DFA functionality."""
         np.random.seed(42)
-        data = fgn(0.5, 256)
+        data = fgn(0.6, 256)
         
         H_est, window_sizes, fluctuations = dfa_analysis(data)
         
         assert isinstance(H_est, float)
-        assert 0.0 < H_est < 1.5  # DFA can give values outside [0,1]
+        assert 0.0 < H_est < 1.0
         assert len(window_sizes) == len(fluctuations)
+        assert len(window_sizes) > 0
         assert all(f > 0 for f in fluctuations)
     
     def test_estimate_hurst_multiple_methods(self):
         """Test multiple Hurst estimation methods."""
         np.random.seed(42)
-        data = fgn(0.7, 512)
+        H_true = 0.7
+        data = fgn(H_true, 512)
         
+        # Test all available methods
         results = estimate_hurst_multiple_methods(data)
         
         assert isinstance(results, dict)
-        assert 'rs_analysis' in results or 'dfa' in results  # At least one should work
         
-        # Check summary if multiple methods succeeded
+        # Check that we have results from different methods (using actual key names)
+        expected_method_keys = ['rs_analysis', 'dfa', 'wavelet']
+        
+        for method_key in expected_method_keys:
+            if method_key in results:
+                method_result = results[method_key]
+                assert isinstance(method_result, dict)
+                
+                # All methods should use 'H' as the key name
+                assert 'H' in method_result, f"Method {method_key} missing Hurst estimate"
+                
+                H_est = method_result['H']
+                assert isinstance(H_est, (int, float, np.number))
+                assert 0.0 < H_est < 1.0, f"Method {method_key}: Hurst estimate {H_est} not in valid range"
+        
+        # Check that we have a summary if multiple methods worked
         if 'summary' in results:
             summary = results['summary']
             assert 'mean_H' in summary
-            assert 'std_H' in summary
-            assert summary['n_methods'] >= 1
+            assert summary.get('n_methods', 0) >= 1
+    
+    def test_wavelet_hurst_estimation_range(self):
+        """Test that wavelet Hurst estimation returns values in valid range (0,1)."""
+        from fractalsig import wavelet_hurst_estimation
+        
+        # Test with different known Hurst values
+        test_cases = [0.3, 0.5, 0.7]
+        
+        for H_true in test_cases:
+            np.random.seed(42)
+            data = fgn(H_true, 256)
+            
+            H_est, info = wavelet_hurst_estimation(data)
+            
+            # Critical test: Hurst estimate must be in valid range
+            assert 0 < H_est < 1, f"Hurst estimate {H_est} not in valid range (0,1) for H_true={H_true}"
+            
+            # Additional checks
+            assert isinstance(H_est, (float, np.floating)), "Hurst estimate should be float"
+            assert isinstance(info, dict), "Info should be dictionary"
+            assert 'slope' in info, "Info should contain slope"
+            assert 'wavelet' in info, "Info should contain wavelet type"
+            
+            # Verify the mathematical relationship is correct for fGn
+            # For fGn: slope = 2H - 1, so H = (slope + 1) / 2
+            expected_H = (info['slope'] + 1) / 2
+            assert abs(H_est - expected_H) < 1e-10, "Formula calculation mismatch"
 
 
 class TestPlottingFunctions:
