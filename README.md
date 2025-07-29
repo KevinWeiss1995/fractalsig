@@ -145,12 +145,3 @@ The documentation covers:
 - **Validation methods**: R/S analysis, testing architecture
 
 Prerequisites: LaTeX distribution (MacTeX, TeX Live, or MiKTeX)
-
-## Validation
-
-The library passes all specified requirements:
-
-- ✅ R/S analysis on fgn(H=0.7, L=4096) yields H ≈ 0.7 ± 0.05
-- ✅ np.diff(fbn(data)) ≈ original fgn within floating point error  
-- ✅ FFT on sine wave returns correct frequency peak
-- ✅ pywt.waverec of FWT output matches original input 
