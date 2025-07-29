@@ -70,6 +70,54 @@ def test_fgn_length_validation():
         fgn(0.5, -10)
 
 
+def test_fgn_power_of_two_warning():
+    """Test that fgn warns when length is not a power of two."""
+    import warnings
+    
+    # Test that power-of-two lengths don't trigger warning
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        fgn(0.5, 256)  # 2^8 = 256
+        assert len(w) == 0, "Power-of-two length should not trigger warning"
+    
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        fgn(0.5, 1024)  # 2^10 = 1024
+        assert len(w) == 0, "Power-of-two length should not trigger warning"
+    
+    # Test that non-power-of-two lengths trigger warning
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        fgn(0.5, 100)  # Not a power of two
+        assert len(w) == 1, "Non-power-of-two length should trigger warning"
+        assert "not a power of two" in str(w[0].message)
+        assert "FFT operations" in str(w[0].message)
+        assert "64, 128" in str(w[0].message)  # Should suggest nearby powers of two
+    
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        fgn(0.7, 1000)  # Not a power of two
+        assert len(w) == 1, "Non-power-of-two length should trigger warning"
+        assert "512, 1024" in str(w[0].message)  # Should suggest nearby powers of two
+    
+    # Test edge cases
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        result = fgn(0.5, 1)  # L=1 should not warn (edge case, handled separately)
+        assert len(w) == 0, "L=1 should not trigger warning"
+        assert len(result) == 1, "L=1 should return array of length 1"
+    
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        fgn(0.5, 2)  # L=2 is power of two
+        assert len(w) == 0, "L=2 should not trigger warning"
+        
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        fgn(0.5, 3)  # L=3 is not power of two
+        assert len(w) == 1, "L=3 should trigger warning"
+
+
 def test_fgn_output_shape():
     """Test that fgn returns correct output shape."""
     H = 0.7

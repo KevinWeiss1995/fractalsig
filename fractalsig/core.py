@@ -27,6 +27,28 @@ def fgn(H, L):
     if L <= 0:
         raise ValueError(f"Length L must be positive, got {L}")
     
+    # Handle edge case for very small lengths
+    if L == 1:
+        return np.array([np.random.randn()])
+    
+    # Check if L is a power of two and warn if not
+    if L > 1 and (L & (L - 1)) != 0:
+        import warnings
+        # Find the next power of two for suggestion
+        next_power_of_two = 1 << (L - 1).bit_length()
+        prev_power_of_two = next_power_of_two >> 1
+        
+        warnings.warn(
+            f"Length L={L} is not a power of two. The Davies-Harte method uses FFT operations "
+            f"which are most efficient with power-of-two lengths (e.g., {prev_power_of_two}, {next_power_of_two}). "
+            f"Non-power-of-two lengths will result in slower FFT computations and may cause "
+            f"the circulant embedding matrix to have a larger size (2*(L-1)={2*(L-1)}), "
+            f"potentially leading to increased memory usage and computation time. "
+            f"Consider using a nearby power of two for optimal performance.",
+            UserWarning,
+            stacklevel=2
+        )
+    
     # Davies-Harte method implementation
     # Create autocovariance function for fGn
     n = np.arange(L)
