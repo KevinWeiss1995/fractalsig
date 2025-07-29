@@ -1,0 +1,64 @@
+# .cursorrules
+
+[project]
+name = "fractalsig"
+description = "Python library for generating and analyzing fractional Gaussian noise and related transforms."
+requires = ["numpy", "scipy", "pywt"]
+
+[rules.fgn]
+description = "Generate a fractional Gaussian noise (fGn) time series of length L and Hurst exponent H."
+parameters = [
+  { name = "H", type = "float", description = "Hurst exponent (0 < H < 1)", required = true },
+  { name = "L", type = "int", description = "Length of the time series", required = true }
+]
+returns = "np.ndarray of shape (L,) representing fractional Gaussian noise"
+constraints = [
+  "H must be in (0, 1), raise ValueError if not",
+  "Use methods such as Davies-Harte or Circulant Embedding to generate fGn",
+  "Output should validate against R/S analysis for given H"
+]
+
+[rules.fbn]
+description = "Compute fractional Brownian motion (fBm) from a fractional Gaussian noise (fGn) series by cumulative sum."
+parameters = [
+  { name = "data", type = "np.ndarray", description = "1D array of values (typically from fgn)", required = true }
+]
+returns = "np.ndarray of shape (len(data),) representing fractional Brownian motion"
+constraints = [
+  "Input must be 1D numeric array",
+  "Use np.cumsum internally",
+  "Raise TypeError if input is not 1D"
+]
+
+[rules.fft]
+description = "Compute Fast Fourier Transform (FFT) of a 1D signal."
+parameters = [
+  { name = "data", type = "np.ndarray", description = "Real-valued 1D input signal", required = true }
+]
+returns = "Tuple of (freqs, magnitudes): frequency bins and FFT magnitudes"
+constraints = [
+  "Use numpy.fft.fft and numpy.fft.fftfreq",
+  "Normalize or document if not normalized",
+  "Support both even and odd-length arrays"
+]
+
+[rules.fwt]
+description = "Compute Fast Wavelet Transform (FWT) of a 1D signal."
+parameters = [
+  { name = "data", type = "np.ndarray", description = "Input signal to transform", required = true },
+  { name = "wavelet", type = "str", description = "Wavelet type (default: 'db2')", required = false },
+  { name = "level", type = "int or None", description = "Decomposition level; default determines automatically", required = false }
+]
+returns = "List of np.ndarray objects containing approximation and detail coefficients"
+constraints = [
+  "Use PyWavelets (pywt) library for transform",
+  "Validate wavelet name using pywt.wavelist()",
+  "Ensure reconstruction via pywt.waverec is close to input"
+]
+
+[testing.expectations]
+fgn = "R/S analysis on fgn(H=0.7, L=4096) should yield H ≈ 0.7 ± 0.05"
+fbn = "np.diff(fbn(data)) ≈ original fgn within floating point error"
+fft = "FFT on a sine wave should return correct frequency peak"
+fwt = "pywt.waverec of FWT output should approximately match original input"
+
