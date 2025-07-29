@@ -144,4 +144,4 @@ The documentation covers:
 - **Code analysis**: Line-by-line explanations, complexity analysis
 - **Validation methods**: R/S analysis, testing architecture
 
-Prerequisites: LaTeX distribution (MacTeX, TeX Live, or MiKTeX)
+Prerequisites: LaTeX distribution (MacTeX, TeX Live, or MiKTeX)gi
