@@ -4,7 +4,7 @@ Core functions for fractional signal analysis.
 
 import numpy as np
 import pywt
-from scipy.fft import fft as scipy_fft, fftfreq
+from scipy.fft import fft as scipy_fft, ifft as scipy_ifft, fftfreq
 
 
 def fgn(H, L):
@@ -20,6 +20,7 @@ def fgn(H, L):
         
     Raises:
         ValueError: If H is not in (0, 1)
+        UserWarning: If L is not a power of two
     """
     if not (0 < H < 1):
         raise ValueError(f"Hurst exponent H must be in (0, 1), got {H}")
@@ -62,7 +63,7 @@ def fgn(H, L):
     R[L:] = r[1:L-1][::-1]  # Mirror for circulant structure
     
     # Eigenvalues via FFT
-    lambda_vals = np.real(np.fft.fft(R))
+    lambda_vals = np.real(scipy_fft(R))
     
     # Check for numerical issues
     if np.any(lambda_vals < -1e-12):
@@ -81,7 +82,7 @@ def fgn(H, L):
     Y = W * np.sqrt(lambda_vals)
     
     # Inverse FFT and take real part
-    fgn_series = np.real(np.fft.ifft(Y))[:L]
+    fgn_series = np.real(scipy_ifft(Y))[:L]
     
     return fgn_series
 
@@ -106,7 +107,7 @@ def _fgn_simple(H, L):
         return eigenvecs @ (np.sqrt(eigenvals) * Z)
 
 
-def fbn(data):
+def fbm(data):
     """
     Compute fractional Brownian motion (fBm) from fractional Gaussian noise (fGn).
     
@@ -127,7 +128,7 @@ def fbn(data):
     if not np.issubdtype(data.dtype, np.number):
         raise TypeError("Input must be numeric array")
     
-    # fBm traditionally starts at 0
+    # start at 0
     return np.cumsum(np.concatenate([[0], data]))
 
 
@@ -147,10 +148,10 @@ def fft(data):
         raise ValueError(f"Input must be 1D array, got {data.ndim}D")
     
     # Compute FFT
-    fft_vals = np.fft.fft(data)
+    fft_vals = scipy_fft(data)
     
     # Compute frequency bins (normalized to sampling rate = 1)
-    freqs = np.fft.fftfreq(len(data))
+    freqs = fftfreq(len(data))
     
     # Compute magnitudes
     magnitudes = np.abs(fft_vals)
