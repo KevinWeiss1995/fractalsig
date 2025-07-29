@@ -1,119 +1,127 @@
 # FractalSig
 
-Python library for generating and analyzing fractional Gaussian noise and related transforms.
+A Python library for generating and analyzing fractional Gaussian noise (fGn) and fractional Brownian motion (fBm) using advanced mathematical methods.
 
 ## Features
 
-- **fgn**: Generate fractional Gaussian noise using Davies-Harte method
-- **fbn**: Compute fractional Brownian motion from fGn  
-- **fft**: Fast Fourier Transform with frequency analysis
+- **fgn**: Generate fractional Gaussian noise using the Davies-Harte method
+- **fbm**: Compute fractional Brownian motion from fGn
+- **fft**: Fast Fourier Transform analysis
 - **fwt**: Fast Wavelet Transform using PyWavelets
+- **Advanced Analysis**: R/S analysis, DFA, wavelet-based Hurst estimation, and more
+- **Visualization**: Professional plotting functions for all analyses
+- **Utilities**: Performance benchmarking, validation, and reporting tools
 
 ## Installation
 
-### Quick Setup (Recommended)
-Use the provided setup scripts to avoid permission issues:
-
-**Linux/macOS:**
-```bash
-./setup_dev.sh
-```
-
-**Windows:**
-```cmd
-setup_dev.bat
-```
-
-### Manual Installation
-
-#### Option 1: Virtual Environment
+### Option 1: Virtual Environment (Recommended)
 ```bash
 # Create and activate virtual environment
 python -m venv fractalsig-env
 source fractalsig-env/bin/activate  # On Windows: fractalsig-env\Scripts\activate
 
-# Install in development mode
+# Install the package
 pip install -e .
 ```
 
-#### Option 2: User Installation (No sudo required)
+### Option 2: User Installation
 ```bash
-pip install -e . --user
+pip install --user -e .
 ```
 
-#### Option 3: From PyPI (when published)
+### Option 3: Development Setup
+Use the provided setup scripts:
 ```bash
-pip install fractalsig
+# Linux/macOS
+./setup_dev.sh
+
+# Windows
+setup_dev.bat
 ```
-
-## Requirements
-
-- numpy >= 1.20.0
-- scipy >= 1.7.0  
-- PyWavelets >= 1.2.0
 
 ## Quick Start
 
 ```python
-import numpy as np
-from fractalsig import fgn, fbn, fft, fwt
+from fractalsig import fgn, fbm, fft, fwt
 
 # Generate fractional Gaussian noise
-H = 0.7  # Hurst exponent (0 < H < 1)
-L = 1024  # Length
+H = 0.7  # Hurst exponent
+L = 1024  # Length (power of 2 recommended for optimal FFT performance)
 fgn_data = fgn(H, L)
 
 # Convert to fractional Brownian motion
-fbm_data = fbn(fgn_data)
+fbm_data = fbm(fgn_data)
 
 # Analyze with FFT
 freqs, magnitudes = fft(fgn_data)
 
-# Analyze with wavelets
+# Wavelet analysis
 coeffs = fwt(fgn_data, wavelet='db4')
 ```
 
-## Function Reference
+## Core Functions
 
 ### fgn(H, L)
-Generate fractional Gaussian noise.
+Generate fractional Gaussian noise using the Davies-Harte method.
 
-**Parameters:**
-- `H` (float): Hurst exponent (0 < H < 1)
-- `L` (int): Length of time series
+- **H**: Hurst exponent (0 < H < 1)
+- **L**: Length of time series (power of 2 recommended)
+- **Returns**: Array of fractional Gaussian noise
 
-**Returns:** np.ndarray of shape (L,)
+### fbm(data)
+Compute fractional Brownian motion from fractional Gaussian noise.
 
-### fbn(data)
-Compute fractional Brownian motion from fGn.
-
-**Parameters:**
-- `data` (np.ndarray): 1D input data
-
-**Returns:** np.ndarray of shape (len(data) + 1,)
+- **data**: Input fGn data
+- **Returns**: fBm array (length = len(data) + 1, starts at 0)
 
 ### fft(data)
 Fast Fourier Transform analysis.
 
-**Parameters:**
-- `data` (np.ndarray): 1D input signal
-
-**Returns:** Tuple (freqs, magnitudes)
+- **data**: Input signal
+- **Returns**: (frequencies, magnitudes) tuple
 
 ### fwt(data, wavelet='db2', level=None)
-Fast Wavelet Transform.
+Fast Wavelet Transform using PyWavelets.
 
-**Parameters:**
-- `data` (np.ndarray): 1D input signal
-- `wavelet` (str): Wavelet type (default: 'db2')
-- `level` (int): Decomposition level (auto if None)
+- **data**: Input signal
+- **wavelet**: Wavelet type (default: 'db2')
+- **level**: Decomposition level (auto-determined if None)
+- **Returns**: List of wavelet coefficients
 
-**Returns:** List of coefficient arrays
+## Advanced Analysis Functions
+
+The library includes comprehensive analysis capabilities:
+
+- **rs_analysis**: Rescaled Range analysis for Hurst estimation
+- **dfa_analysis**: Detrended Fluctuation Analysis
+- **wavelet_hurst_estimation**: Wavelet-based Hurst estimation
+- **estimate_hurst_multiple_methods**: Compare multiple estimation methods
+- **autocorrelation_function**: Compute autocorrelation
+- **power_spectral_density**: Power spectral density estimation
+
+## Visualization Functions
+
+Professional plotting capabilities:
+
+- **plot_fgn**: Plot fractional Gaussian noise
+- **plot_fbm**: Plot fractional Brownian motion
+- **plot_fft_spectrum**: FFT spectrum visualization
+- **plot_wavelet_coefficients**: Wavelet coefficient visualization
+- **plot_hurst_comparison**: Compare Hurst estimation methods
+- **plot_summary**: Comprehensive analysis summary
+
+## Utility Functions
+
+Performance and validation tools:
+
+- **benchmark_fgn_methods**: Compare fGn generation methods
+- **validate_algorithm_correctness**: Verify implementation correctness
+- **generate_test_dataset**: Create synthetic test data
+- **create_report**: Generate comprehensive analysis reports
 
 ## Testing
 
 Run the test suite:
-
 ```bash
 python -m pytest tests/ -v
 ```
@@ -121,27 +129,43 @@ python -m pytest tests/ -v
 ## Demo
 
 Run the demonstration script:
-
-```bash
+```python
 python demo.py
 ```
 
-This generates example plots showing all library functions in action.
+This generates example plots showing fGn, fBm, FFT, and wavelet analysis.
 
 ## Documentation
 
-Comprehensive technical documentation is available in the `docs/` directory:
+For detailed mathematical theory and implementation details, see the LaTeX documentation in the `docs/` folder:
 
 ```bash
 cd docs/
-make          # Compile LaTeX documentation to PDF
-make open     # Compile and open the PDF
+make pdf    # or make html
 ```
 
-The documentation covers:
-- **Mathematical theory**: fGn, fBm, Hurst exponents, spectral properties
-- **Implementation details**: Davies-Harte algorithm, numerical methods
-- **Code analysis**: Line-by-line explanations, complexity analysis
-- **Validation methods**: R/S analysis, testing architecture
+## Mathematical Background
 
-Prerequisites: LaTeX distribution (MacTeX, TeX Live, or MiKTeX)gi
+This library implements:
+
+- **Davies-Harte Method**: Efficient fGn generation using circulant embedding
+- **Fractional Brownian Motion**: Self-similar Gaussian process
+- **R/S Analysis**: Rescaled Range statistical method
+- **Wavelet Analysis**: Multi-resolution signal decomposition
+- **Spectral Analysis**: Frequency domain characterization
+
+The Hurst exponent H controls the roughness and long-range dependence:
+- H = 0.5: Standard Brownian motion (no correlation)
+- H > 0.5: Persistent behavior (positive correlation)
+- H < 0.5: Anti-persistent behavior (negative correlation)
+
+## Requirements
+
+- Python 3.7+
+- NumPy ≥ 1.20.0
+- SciPy ≥ 1.7.0
+- PyWavelets ≥ 1.2.0
+
+## License
+
+MIT License

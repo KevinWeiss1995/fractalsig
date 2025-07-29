@@ -433,7 +433,7 @@ def plot_summary(data: np.ndarray, H: Optional[float] = None,
     Returns:
         matplotlib Figure object
     """
-    from .core import fbn, fft, fwt  # Import here to avoid circular import
+    from .core import fbm, fft, fwt  # Import here to avoid circular import
     
     fig = plt.figure(figsize=figsize)
     
@@ -463,7 +463,7 @@ range = {np.ptp(data):.4f}"""
     
     # 3. fBm (cumulative sum)
     ax3 = fig.add_subplot(gs[1, 0])
-    fbm_data = fbn(data)
+    fbm_data = fbm(data)
     ax3.plot(fbm_data, 'darkred', alpha=0.8, linewidth=1.5)
     ax3.set_title('Fractional Brownian Motion', fontweight='bold')
     ax3.set_ylabel('fBm Value')

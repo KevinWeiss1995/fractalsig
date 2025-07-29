@@ -3,7 +3,7 @@ FractalSig: Python library for generating and analyzing fractional Gaussian nois
 """
 
 # Core functions
-from .core import fgn, fbn, fft, fwt
+from .core import fgn, fbm, fft, fwt
 
 # Analysis functions
 from .analysis import (
@@ -30,7 +30,7 @@ from .utils import (
 __version__ = "0.1.0"
 
 # Core functions
-__all__ = ["fgn", "fbn", "fft", "fwt"]
+__all__ = ["fgn", "fbm", "fft", "fwt"]
 
 # Analysis functions
 __all__ += [

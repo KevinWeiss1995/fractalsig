@@ -8,7 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from fractalsig import (
     # Core functions
-    fgn, fbn, fft, fwt,
+    fgn, fbm, fft, fwt,
     # Analysis functions
     rs_analysis, dfa_analysis, estimate_hurst_multiple_methods,
     autocorrelation_function, validate_fgn_properties,
@@ -108,7 +108,7 @@ def demo_advanced_plotting():
     print("   Saved: fgn_detailed.png")
     
     # fBm plot
-    fbm_data = fbn(fgn_data)
+    fbm_data = fbm(fgn_data)
     fig3 = plot_fbm(fbm_data, H=0.7, show_scaling=True)
     fig3.savefig('fbm_detailed.png', dpi=150, bbox_inches='tight')
     print("   Saved: fbm_detailed.png")

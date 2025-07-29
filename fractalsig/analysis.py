@@ -6,6 +6,7 @@ Provides statistical analysis and parameter estimation functions.
 import numpy as np
 from typing import Tuple, Optional, Dict, List, Union
 import warnings
+from scipy.fft import fft, fftfreq
 
 
 def rs_analysis(data: np.ndarray, max_lag: Optional[int] = None) -> Tuple[float, np.ndarray, np.ndarray]:
@@ -313,9 +314,9 @@ def power_spectral_density(data: np.ndarray, method: str = 'periodogram') -> Tup
         freqs, psd = signal.welch(data)
     else:
         # Simple FFT-based PSD
-        fft_data = np.fft.fft(data)
+        fft_data = fft(data)
         psd = np.abs(fft_data) ** 2 / len(data)
-        freqs = np.fft.fftfreq(len(data))
+        freqs = fftfreq(len(data))
         
         # Take positive frequencies only
         positive_mask = freqs >= 0
