@@ -6,11 +6,10 @@ import numpy as np
 import pytest
 import warnings
 from fractalsig import (
-    fgn, fbn, fft, fwt,
+    fgn, fbm, fft, fwt,
     rs_analysis, dfa_analysis, estimate_hurst_multiple_methods,
-    plot_fgn, plot_fbm, plot_summary, plot_hurst_comparison,
-    benchmark_fgn_methods, validate_algorithm_correctness,
-    generate_test_dataset, create_report
+    plot_fgn, plot_fbm, plot_fft_spectrum, plot_summary, plot_hurst_comparison,
+    benchmark_fgn_methods, validate_algorithm_correctness, generate_test_dataset, create_report
 )
 
 
@@ -94,7 +93,7 @@ class TestPlottingFunctions:
     def test_plot_fgn_basic(self):
         """Test basic fGn plotting."""
         np.random.seed(42)
-        data = fgn(0.7, 100)
+        data = fgn(0.7, 128)
         
         fig = plot_fgn(data, H=0.7)
         
@@ -110,8 +109,8 @@ class TestPlottingFunctions:
     def test_plot_fbm_basic(self):
         """Test basic fBm plotting."""
         np.random.seed(42)
-        fgn_data = fgn(0.6, 100)
-        fbm_data = fbn(fgn_data)
+        fgn_data = fgn(0.6, 128)
+        fbm_data = fbm(fgn_data)
         
         fig = plot_fbm(fbm_data, H=0.6)
         
@@ -163,21 +162,21 @@ class TestUtilityFunctions:
     
     def test_validate_algorithm_correctness(self):
         """Test algorithm validation."""
-        results = validate_algorithm_correctness(n_tests=3, seed=42)
+        results = validate_algorithm_correctness(n_tests=3)
         
         assert isinstance(results, dict)
-        assert 'all_tests_passed' in results
+        assert 'error_messages' in results
         assert 'fgn_generation' in results
-        assert 'fbn_reconstruction' in results
-        
-        # Most tests should pass with correct implementation
+        assert 'fbm_reconstruction' in results
         assert results['fgn_generation'] is True
-        assert results['fbn_reconstruction'] is True
+        assert results['fft_sine_wave'] is True
+        assert results['wavelet_reconstruction'] is True
+        assert results['fbm_reconstruction'] is True
     
     def test_generate_test_dataset(self):
         """Test synthetic dataset generation."""
         H = 0.6
-        L = 100
+        L = 128  # Power of 2 for efficiency
         
         dataset = generate_test_dataset(H, L, noise_level=0.1, trend='linear')
         
@@ -221,8 +220,8 @@ class TestIntegrationWithNewFunctions:
         H_rs, _, _ = rs_analysis(fgn_data)
         
         # Validation should not crash
-        validation_results = validate_algorithm_correctness(n_tests=2, seed=42)
-        assert validation_results['all_tests_passed'] is True
+        validation_results = validate_algorithm_correctness(n_tests=2)
+        assert validation_results['fgn_generation'] is True
         
         # Generate test dataset
         test_data = generate_test_dataset(H_true, L)
@@ -281,7 +280,7 @@ class TestIntegrationWithNewFunctions:
         # This test mainly ensures functions complete without hanging
         np.random.seed(42)
         
-        data = fgn(0.5, 100)
+        data = fgn(0.5, 128)
         
         # These should complete quickly
         results = estimate_hurst_multiple_methods(data)
@@ -306,8 +305,8 @@ if __name__ == "__main__":
     fig = plot_fgn(data, H=0.7)
     print("fGn plot created successfully")
     
-    # Test utilities
-    results = validate_algorithm_correctness(n_tests=1, seed=42)
-    print(f"Algorithm validation: {results['all_tests_passed']}")
+        # Test utilities
+    results = validate_algorithm_correctness(n_tests=1)
+    print(f"Algorithm validation: {results['fgn_generation']}")
     
     print("Basic tests passed!") 

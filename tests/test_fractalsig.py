@@ -5,7 +5,7 @@ Tests for fractalsig library functions.
 import numpy as np
 import pytest
 import pywt
-from fractalsig import fgn, fbn, fft, fwt
+from fractalsig import fgn, fbm, fft, fwt
 
 
 def rs_analysis(data):
@@ -47,18 +47,18 @@ def rs_analysis(data):
 
 def test_fgn_hurst_validation():
     """Test that fgn validates Hurst exponent range."""
-    # Test invalid H values
+    # Test invalid H values (use power-of-two length to avoid warnings in error tests)
     with pytest.raises(ValueError, match="Hurst exponent H must be in"):
-        fgn(0, 100)
+        fgn(0, 128)
     
     with pytest.raises(ValueError, match="Hurst exponent H must be in"):
-        fgn(1, 100)
+        fgn(1, 128)
     
     with pytest.raises(ValueError, match="Hurst exponent H must be in"):
-        fgn(-0.1, 100)
+        fgn(-0.1, 128)
     
     with pytest.raises(ValueError, match="Hurst exponent H must be in"):
-        fgn(1.1, 100)
+        fgn(1.1, 128)
 
 
 def test_fgn_length_validation():
@@ -88,7 +88,7 @@ def test_fgn_power_of_two_warning():
     # Test that non-power-of-two lengths trigger warning
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
-        fgn(0.5, 100)  # Not a power of two
+        fgn(0.5, 100)  # Not a power of two (intentional for warning test)
         assert len(w) == 1, "Non-power-of-two length should trigger warning"
         assert "not a power of two" in str(w[0].message)
         assert "FFT operations" in str(w[0].message)
@@ -96,7 +96,7 @@ def test_fgn_power_of_two_warning():
     
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
-        fgn(0.7, 1000)  # Not a power of two
+        fgn(0.7, 1000)  # Not a power of two (intentional for warning test)
         assert len(w) == 1, "Non-power-of-two length should trigger warning"
         assert "512, 1024" in str(w[0].message)  # Should suggest nearby powers of two
     
@@ -114,7 +114,7 @@ def test_fgn_power_of_two_warning():
         
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
-        fgn(0.5, 3)  # L=3 is not power of two
+        fgn(0.5, 3)  # L=3 is not power of two (intentional for warning test)
         assert len(w) == 1, "L=3 should trigger warning"
 
 
@@ -152,50 +152,49 @@ def test_fgn_rs_analysis():
         assert abs(H_mean - H_true) <= 0.05, f"R/S analysis gave H={H_mean:.3f}, expected {H_true} ± 0.05"
 
 
-def test_fbn_input_validation():
-    """Test fbn input validation."""
-    # Test 2D input
+def test_fbm_input_validation():
+    """Test fbm input validation."""
+    # Test 2D array (should fail)
     with pytest.raises(TypeError, match="Input must be 1D array"):
-        fbn(np.array([[1, 2], [3, 4]]))
+        fbm(np.array([[1, 2], [3, 4]]))
     
-    # Test 3D input
+    # Test 3D array (should fail)
     with pytest.raises(TypeError, match="Input must be 1D array"):
-        fbn(np.array([[[1]]]))
+        fbm(np.array([[[1]]]))
 
 
-def test_fbn_output_shape():
-    """Test fbn output shape and type."""
-    data = np.array([1.0, 2.0, 3.0, 4.0])
-    result = fbn(data)
+def test_fbm_output_shape():
+    """Test fbm output shape and type."""
+    data = np.array([1.0, 2.0, 3.0])
+    result = fbm(data)
     
+    # Output should be one element longer than input (starts at 0)
+    assert result.shape == (4,), f"Expected shape (4,), got {result.shape}"
     assert isinstance(result, np.ndarray)
-    assert result.shape == (len(data) + 1,)  # fBm is one element longer
-    assert len(result) == len(data) + 1
 
 
-def test_fbn_cumsum_behavior():
-    """Test that fbn is equivalent to cumsum starting from 0."""
-    data = np.array([1.0, -0.5, 2.0, -1.0, 0.5])
-    result = fbn(data)
-    expected = np.cumsum(np.concatenate([[0], data]))
+def test_fbm_cumsum_behavior():
+    """Test that fbm is equivalent to cumsum starting from 0."""
+    data = np.array([1.0, 2.0, 3.0, -1.0])
+    result = fbm(data)
+    expected = np.array([0.0, 1.0, 3.0, 6.0, 5.0])  # cumsum starting from 0
     
-    np.testing.assert_array_equal(result, expected)
+    assert np.array_equal(result, expected), f"Expected {expected}, got {result}"
 
 
-def test_fbn_fgn_reconstruction():
-    """Test that np.diff(fbn(data)) ≈ original fgn."""
+def test_fbm_fgn_reconstruction():
+    """Test that np.diff(fbm(data)) ≈ original fgn."""
     np.random.seed(123)
     
     H = 0.5
-    L = 100
+    L = 128  # Power of 2 for efficiency
     fgn_data = fgn(H, L)
-    fbn_data = fbn(fgn_data)
+    fbm_data = fbm(fgn_data)
     
     # Reconstruct original via diff
-    reconstructed = np.diff(fbn_data)
+    reconstructed = np.diff(fbm_data)
     
-    # Should match original fgn within floating point error
-    # With fBm starting at 0, diff should recover the original exactly
+    # Should recover original fgn_data
     np.testing.assert_allclose(reconstructed, fgn_data, rtol=1e-14, atol=1e-15)
 
 
@@ -318,7 +317,7 @@ def test_integration_workflow():
     fgn_data = fgn(H, L)
     
     # Convert to fBm
-    fbm_data = fbn(fgn_data)
+    fbm_data = fbm(fgn_data)
     
     # Analyze with FFT
     freqs, magnitudes = fft(fgn_data)
@@ -337,7 +336,7 @@ def test_integration_workflow():
 if __name__ == "__main__":
     # Run a few basic tests if called directly
     test_fgn_output_shape()
-    test_fbn_cumsum_behavior()
+    test_fbm_cumsum_behavior()
     test_fft_output_format()
     test_fwt_output_format()
     print("Basic tests passed!") 
