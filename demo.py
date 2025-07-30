@@ -153,7 +153,7 @@ def demo_utility_functions():
     
     # Algorithm validation
     print("\n2. Algorithm Validation:")
-    validation_results = validate_algorithm_correctness(n_tests=5, seed=42)
+    validation_results = validate_algorithm_correctness(n_tests=5)
     
     for test_name, passed in validation_results.items():
         if test_name == 'error_messages':
@@ -161,7 +161,8 @@ def demo_utility_functions():
         status = "PASS" if passed else "FAIL"
         print(f"   {test_name}: {status}")
     
-    if not validation_results['all_tests_passed'] and validation_results['error_messages']:
+    # Check if there are any error messages
+    if validation_results.get('error_messages'):
         print("   Errors:")
         for error in validation_results['error_messages']:
             print(f"     - {error}")

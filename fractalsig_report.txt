@@ -14,11 +14,11 @@ BASIC STATISTICS:
 HURST EXPONENT ESTIMATION:
   Rescaled Range: H = 0.8040
   Detrended Fluctuation Analysis: H = 0.8029
-  Wavelet-based: H = -0.6878
+  Wavelet-based: H = 0.6878
   Summary (n=3):
-    Mean H: 0.3064
-    Std H:  0.7030
-    Range:  [-0.6878, 0.8040]
+    Mean H: 0.7649
+    Std H:  0.0545
+    Range:  [0.6878, 0.8040]
 
 VALIDATION RESULTS:
   Normality (Shapiro-Wilk): PASS
