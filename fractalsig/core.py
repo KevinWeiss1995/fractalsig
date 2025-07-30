@@ -50,73 +50,74 @@ def fgn(H, L):
             stacklevel=2
         )
     
-    # Reference: Percival & Walden (2000), Wavelet Methods for Time Series Analysis
     
-    # Step 1: Create the autocovariance sequence γ(k) for fGn
-    # γ(k) = 0.5 * [|k+1|^(2H) - 2|k|^(2H) + |k-1|^(2H)]
-    k = np.arange(L, dtype=float)
+    # Reference: Wood & Chan (1994), Dietrich & Newsam (1997)
+    
+    # Step 1: Compute autocovariance sequence γ(k) for fGn
+    # Using exact formula: γ(k) = 0.5 * [|k+1|^(2H) - 2|k|^(2H) + |k-1|^(2H)]
     gamma = np.zeros(L)
+    gamma[0] = 1.0  # γ(0) = variance = 1
     
-    for i in range(L):
-        if i == 0:
-            gamma[i] = 1.0  # γ(0) = Var = 1
-        else:
-            gamma[i] = 0.5 * (abs(i + 1)**(2*H) - 2*abs(i)**(2*H) + abs(i - 1)**(2*H))
+    for k in range(1, L):
+        gamma[k] = 0.5 * ((k + 1)**(2*H) - 2*k**(2*H) + (k - 1)**(2*H))
     
-    # Step 2: Create circulant embedding matrix first row
-    # Need size m = 2(n-1) to ensure positive semi-definite
-    m = 2 * (L - 1)
+    # Step 2: Construct circulant embedding matrix
+    # Use size m = 2*L to ensure positive definiteness
+    m = 2 * L
     c = np.zeros(m)
     
-    # Fill first row of circulant matrix:
-    # c = [γ(0), γ(1), ..., γ(n-1), γ(n-1), γ(n-2), ..., γ(1)]
-    c[0:L] = gamma  # γ(0) to γ(n-1)
-    c[L:m] = gamma[L-2:0:-1]  # γ(n-2) down to γ(1), reverse order
+    # First row of circulant matrix: [γ(0), γ(1), ..., γ(L-1), 0, γ(L-1), ..., γ(1)]
+    c[:L] = gamma                    # γ(0) to γ(L-1)
+    c[L] = 0                        # Critical: zero at position L
+    c[L+1:] = gamma[L-1:0:-1]       # γ(L-1) down to γ(1) in reverse
     
-    # Step 3: Get eigenvalues of circulant matrix via FFT
+    # Step 3: Compute eigenvalues with FFT
     eigenvals = np.real(scipy_fft(c))
     
-    # Check for negative eigenvalues (method failure)
-    if np.any(eigenvals < -1e-14):
+    # Quick check
+    if np.any(eigenvals < -1e-12):
         return _fgn_simple(H, L)
-    
-    # Ensure all eigenvalues are non-negative
+
     eigenvals = np.maximum(eigenvals, 0)
     
-    # Step 4: Generate independent standard Gaussian random variables
-    # For real-valued result, we need proper conjugate symmetry
+    # Step 4: Generate Hermitian symmetric complex Gaussian noise
     
-    # Method from Dietrich & Newsam (1997) - the definitive reference
-    a = np.random.randn(m)
-    b = np.random.randn(m)
+    # Generate independent standard normal variables
+    u = np.random.randn(m)
+    v = np.random.randn(m)
     
-    # Create complex white noise with proper symmetry
-    V = np.zeros(m, dtype=complex)
+    # Create complex noise with Hermitian symmetry
+    Z = np.zeros(m, dtype=complex)
     
-    # V[0] is real (DC component)
-    V[0] = a[0]
+    # DC component (k=0) must be real
+    Z[0] = u[0]
     
-    # V[m/2] is real if m is even (Nyquist component)
+    # Nyquist component (k=m/2) must be real if m is even
     if m % 2 == 0:
-        V[m // 2] = a[m // 2]
-        # Fill symmetric pairs for k = 1, ..., m/2-1
+        Z[m // 2] = u[m // 2]
+        # Fill positive frequencies with conjugate pairs
         for k in range(1, m // 2):
-            V[k] = a[k] + 1j * b[k]
-            V[m - k] = a[k] - 1j * b[k]  # Conjugate symmetry
+            Z[k] = (u[k] + 1j * v[k]) / np.sqrt(2)
+            Z[m - k] = (u[k] - 1j * v[k]) / np.sqrt(2)  # Complex conjugate
     else:
-        # m is odd, fill symmetric pairs for k = 1, ..., (m-1)/2
+        # For odd m, no Nyquist frequency
         for k in range(1, (m + 1) // 2):
-            V[k] = a[k] + 1j * b[k]
-            V[m - k] = a[k] - 1j * b[k]  # Conjugate symmetry
+            Z[k] = (u[k] + 1j * v[k]) / np.sqrt(2)
+            Z[m - k] = (u[k] - 1j * v[k]) / np.sqrt(2)  # Complex conjugate
     
     # Step 5: Scale by square root of eigenvalues
-    W = V * np.sqrt(eigenvals)
+    W = Z * np.sqrt(eigenvals)
     
-    # Step 6: Inverse FFT to get the fGn realization
+    # Step 6: Inverse FFT to get the result
     X = scipy_ifft(W)
     
-    # Take real part and first L values
+    # Extract first L values and take real part
     fgn_series = np.real(X[:L])
+    
+    # Step 7: Normalize to ensure unit variance
+    actual_var = np.var(fgn_series)
+    if actual_var > 1e-12:  # Avoid division by zero
+        fgn_series = fgn_series / np.sqrt(actual_var)
     
     return fgn_series
 
