@@ -5,7 +5,7 @@ Tests for fractalsig library functions.
 import numpy as np
 import pytest
 import pywt
-from fractalsig import fgn, fbm, fft, fwt
+from fractalsig import fgn, fbm, fbm_from_fgn, fft, fwt
 
 
 def rs_analysis(data):
@@ -156,17 +156,17 @@ def test_fbm_input_validation():
     """Test fbm input validation."""
     # Test 2D array (should fail)
     with pytest.raises(TypeError, match="Input must be 1D array"):
-        fbm(np.array([[1, 2], [3, 4]]))
+        fbm_from_fgn(np.array([[1, 2], [3, 4]]))
     
     # Test 3D array (should fail)
     with pytest.raises(TypeError, match="Input must be 1D array"):
-        fbm(np.array([[[1]]]))
+        fbm_from_fgn(np.array([[[1]]]))
 
 
 def test_fbm_output_shape():
-    """Test fbm output shape and type."""
+    """Test fbm_from_fgn output shape and type."""
     data = np.array([1.0, 2.0, 3.0])
-    result = fbm(data)
+    result = fbm_from_fgn(data)
     
     # Output should be one element longer than input (starts at 0)
     assert result.shape == (4,), f"Expected shape (4,), got {result.shape}"
@@ -174,22 +174,22 @@ def test_fbm_output_shape():
 
 
 def test_fbm_cumsum_behavior():
-    """Test that fbm is equivalent to cumsum starting from 0."""
+    """Test that fbm_from_fgn is equivalent to cumsum starting from 0."""
     data = np.array([1.0, 2.0, 3.0, -1.0])
-    result = fbm(data)
+    result = fbm_from_fgn(data)
     expected = np.array([0.0, 1.0, 3.0, 6.0, 5.0])  # cumsum starting from 0
     
     assert np.array_equal(result, expected), f"Expected {expected}, got {result}"
 
 
 def test_fbm_fgn_reconstruction():
-    """Test that np.diff(fbm(data)) ≈ original fgn."""
+    """Test that np.diff(fbm_from_fgn(data)) ≈ original fgn."""
     np.random.seed(123)
     
     H = 0.5
     L = 128  # Power of 2 for efficiency
     fgn_data = fgn(H, L)
-    fbm_data = fbm(fgn_data)
+    fbm_data = fbm_from_fgn(fgn_data)
     
     # Reconstruct original via diff
     reconstructed = np.diff(fbm_data)
@@ -317,7 +317,7 @@ def test_integration_workflow():
     fgn_data = fgn(H, L)
     
     # Convert to fBm
-    fbm_data = fbm(fgn_data)
+    fbm_data = fbm_from_fgn(fgn_data)
     
     # Analyze with FFT
     freqs, magnitudes = fft(fgn_data)

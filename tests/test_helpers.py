@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 import warnings
 from fractalsig import (
-    fgn, fbm, fft, fwt,
+    fgn, fbm, fbm_from_fgn, fft, fwt,
     rs_analysis, dfa_analysis, estimate_hurst_multiple_methods,
     plot_fgn, plot_fbm, plot_fft_spectrum, plot_summary, plot_hurst_comparison,
     benchmark_fgn_methods, validate_algorithm_correctness, generate_test_dataset, create_report
@@ -153,7 +153,7 @@ class TestPlottingFunctions:
         """Test basic fBm plotting."""
         np.random.seed(42)
         fgn_data = fgn(0.6, 128)
-        fbm_data = fbm(fgn_data)
+        fbm_data = fbm_from_fgn(fgn_data)
         
         fig = plot_fbm(fbm_data, H=0.6)
         
