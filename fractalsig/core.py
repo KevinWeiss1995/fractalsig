@@ -50,39 +50,73 @@ def fgn(H, L):
             stacklevel=2
         )
     
-    # Davies-Harte method implementation
-    # Create autocovariance function for fGn
-    n = np.arange(L)
-    r = 0.5 * ((n + 1)**(2*H) - 2*n**(2*H) + np.abs(n - 1)**(2*H))
-    r[0] = 1.0  # Variance at lag 0
+    # Reference: Percival & Walden (2000), Wavelet Methods for Time Series Analysis
     
-    # Extend for circulant embedding
-    N = 2 * (L - 1)
-    R = np.zeros(N)
-    R[:L] = r
-    R[L:] = r[1:L-1][::-1]  # Mirror for circulant structure
+    # Step 1: Create the autocovariance sequence γ(k) for fGn
+    # γ(k) = 0.5 * [|k+1|^(2H) - 2|k|^(2H) + |k-1|^(2H)]
+    k = np.arange(L, dtype=float)
+    gamma = np.zeros(L)
     
-    # Eigenvalues via FFT
-    lambda_vals = np.real(scipy_fft(R))
+    for i in range(L):
+        if i == 0:
+            gamma[i] = 1.0  # γ(0) = Var = 1
+        else:
+            gamma[i] = 0.5 * (abs(i + 1)**(2*H) - 2*abs(i)**(2*H) + abs(i - 1)**(2*H))
     
-    # Check for numerical issues
-    if np.any(lambda_vals < -1e-12):
-        # Fall back to simple method if circulant embedding fails
+    # Step 2: Create circulant embedding matrix first row
+    # Need size m = 2(n-1) to ensure positive semi-definite
+    m = 2 * (L - 1)
+    c = np.zeros(m)
+    
+    # Fill first row of circulant matrix:
+    # c = [γ(0), γ(1), ..., γ(n-1), γ(n-1), γ(n-2), ..., γ(1)]
+    c[0:L] = gamma  # γ(0) to γ(n-1)
+    c[L:m] = gamma[L-2:0:-1]  # γ(n-2) down to γ(1), reverse order
+    
+    # Step 3: Get eigenvalues of circulant matrix via FFT
+    eigenvals = np.real(scipy_fft(c))
+    
+    # Check for negative eigenvalues (method failure)
+    if np.any(eigenvals < -1e-14):
         return _fgn_simple(H, L)
     
-    # Ensure non-negative eigenvalues
-    lambda_vals = np.maximum(lambda_vals, 0)
+    # Ensure all eigenvalues are non-negative
+    eigenvals = np.maximum(eigenvals, 0)
     
-    # Generate random Gaussian variables
-    W = np.random.randn(N) + 1j * np.random.randn(N)
-    W[0] = np.real(W[0]) * np.sqrt(2)  # DC component is real
-    W[L-1] = np.real(W[L-1]) * np.sqrt(2)  # Nyquist frequency is real
+    # Step 4: Generate independent standard Gaussian random variables
+    # For real-valued result, we need proper conjugate symmetry
     
-    # Apply square root of eigenvalues
-    Y = W * np.sqrt(lambda_vals)
+    # Method from Dietrich & Newsam (1997) - the definitive reference
+    a = np.random.randn(m)
+    b = np.random.randn(m)
     
-    # Inverse FFT and take real part
-    fgn_series = np.real(scipy_ifft(Y))[:L]
+    # Create complex white noise with proper symmetry
+    V = np.zeros(m, dtype=complex)
+    
+    # V[0] is real (DC component)
+    V[0] = a[0]
+    
+    # V[m/2] is real if m is even (Nyquist component)
+    if m % 2 == 0:
+        V[m // 2] = a[m // 2]
+        # Fill symmetric pairs for k = 1, ..., m/2-1
+        for k in range(1, m // 2):
+            V[k] = a[k] + 1j * b[k]
+            V[m - k] = a[k] - 1j * b[k]  # Conjugate symmetry
+    else:
+        # m is odd, fill symmetric pairs for k = 1, ..., (m-1)/2
+        for k in range(1, (m + 1) // 2):
+            V[k] = a[k] + 1j * b[k]
+            V[m - k] = a[k] - 1j * b[k]  # Conjugate symmetry
+    
+    # Step 5: Scale by square root of eigenvalues
+    W = V * np.sqrt(eigenvals)
+    
+    # Step 6: Inverse FFT to get the fGn realization
+    X = scipy_ifft(W)
+    
+    # Take real part and first L values
+    fgn_series = np.real(X[:L])
     
     return fgn_series
 
