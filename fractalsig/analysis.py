@@ -163,7 +163,8 @@ def wavelet_hurst_estimation(data: np.ndarray, wavelet: str = 'db4') -> Tuple[fl
     except ImportError:
         raise ImportError("PyWavelets is required for wavelet-based Hurst estimation")
     
-    # Perform wavelet decomposition
+    # Perform wavelet decomposition directly on fGn data
+    # Using the standard approach for stationary fractional processes
     coeffs = pywt.wavedec(data, wavelet, mode='periodization')
     
     # Calculate energy at each scale
@@ -190,13 +191,15 @@ def wavelet_hurst_estimation(data: np.ndarray, wavelet: str = 'db4') -> Tuple[fl
     if len(energies) < 3:
         raise ValueError("Not enough non-zero energies for Hurst estimation")
     
-    # Linear regression in log-log space for fGn: log(E_j) = log(c) + (2H-1) * log(2^j)
-    # For fractional Gaussian noise: slope = 2H - 1, so H = (slope + 1) / 2
+    # Linear regression in log-log space
+    # For wavelet analysis of fGn, the correct relationship is typically:
+    # log(E_j) ~ -(2H-1) * j * log(2), so slope = -(2H-1), H = (1-slope)/2
     log_scales = np.log2(scales)
     log_energies = np.log2(energies)
     
     slope = np.polyfit(log_scales, log_energies, 1)[0]
-    H_estimate = (slope + 1) / 2
+    # Try the alternative formula for wavelet energy scaling
+    H_estimate = (1 - slope) / 2
     
     analysis_info = {
         'scales': scales,

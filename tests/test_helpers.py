@@ -124,9 +124,9 @@ class TestAnalysisFunctions:
             assert 'slope' in info, "Info should contain slope"
             assert 'wavelet' in info, "Info should contain wavelet type"
             
-            # Verify the mathematical relationship is correct for fGn
-            # For fGn: slope = 2H - 1, so H = (slope + 1) / 2
-            expected_H = (info['slope'] + 1) / 2
+            # Verify the mathematical relationship is correct for wavelet analysis
+            # For wavelet analysis of fGn: H = (1 - slope) / 2
+            expected_H = (1 - info['slope']) / 2
             assert abs(H_est - expected_H) < 1e-10, "Formula calculation mismatch"
 
 
