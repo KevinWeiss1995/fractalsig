@@ -141,7 +141,7 @@ For detailed mathematical theory and implementation details, see the LaTeX docum
 
 ```bash
 cd docs/
-make pdf    # or make html
+make pdf    
 ```
 
 ## Mathematical Background
