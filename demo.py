@@ -28,7 +28,7 @@ def demo_advanced_analysis():
     # Generate test data
     np.random.seed(42)
     H_true = 0.7
-    L = 1024
+    L = 4096  # Use longer series for clearer autocorrelation patterns
     
     print(f"1. Generating fGn with H={H_true}, L={L}")
     fgn_data = fgn(H_true, L)
