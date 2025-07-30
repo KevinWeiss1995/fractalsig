@@ -8,7 +8,7 @@ A Python library for generating and analyzing fractional Gaussian noise (fGn) an
 - **fbm**: Compute fractional Brownian motion from fGn
 - **fft**: Fast Fourier Transform analysis
 - **fwt**: Fast Wavelet Transform using PyWavelets
-- **Advanced Analysis**: R/S analysis, DFA, wavelet-based Hurst estimation, and more
+- **Analysis**: R/S analysis, DFA, wavelet-based Hurst estimation, and more
 - **Visualization**: Professional plotting functions for all analyses
 - **Utilities**: Performance benchmarking, validation, and reporting tools
 
