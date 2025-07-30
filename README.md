@@ -88,7 +88,7 @@ Fast Wavelet Transform using PyWavelets.
 - **level**: Decomposition level (auto-determined if None)
 - **Returns**: List of wavelet coefficients
 
-## Advanced Analysis Functions
+## Analysis Functions
 
 The library includes comprehensive analysis capabilities:
 
