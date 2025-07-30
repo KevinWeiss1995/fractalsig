@@ -370,9 +370,9 @@ def plot_rs_analysis(data: np.ndarray, H_true: Optional[float] = None,
 
 
 def plot_autocorrelation(data: np.ndarray, max_lag: Optional[int] = None,
-                        H: Optional[float] = None, figsize: Tuple[int, int] = (10, 6)) -> plt.Figure:
+                        H: Optional[float] = None, figsize: Tuple[int, int] = (12, 8)) -> plt.Figure:
     """
-    Plot autocorrelation function of the data.
+    Plot autocorrelation function of the data using multiple methods for clarity.
     
     Parameters:
         data: Time series data
@@ -384,37 +384,122 @@ def plot_autocorrelation(data: np.ndarray, max_lag: Optional[int] = None,
         matplotlib Figure object
     """
     if max_lag is None:
-        max_lag = min(len(data) // 4, 100)
+        max_lag = min(len(data) // 4, 150)
     
-    # Compute autocorrelation
-    autocorr = np.correlate(data, data, mode='full')
-    autocorr = autocorr[len(autocorr)//2:]
-    autocorr = autocorr / autocorr[0]  # Normalize
+    # Method 1: Statsmodels (most reliable)
+    try:
+        from statsmodels.tsa.stattools import acf as sm_acf
+        acf_sm = sm_acf(data, nlags=max_lag, fft=True)
+        lags_sm = np.arange(len(acf_sm))
+        use_statsmodels = True
+        print(f"Using statsmodels: first 10 values = {acf_sm[:10]}")
+    except ImportError:
+        use_statsmodels = False
+        acf_sm = None
+        lags_sm = None
     
-    lags = np.arange(max_lag + 1)
-    autocorr = autocorr[:max_lag + 1]
+    # Method 2: Direct numpy correlate (our current method)
+    data_array = np.array(data)
+    mean = np.mean(data_array)
+    var = np.var(data_array)
+    ndata = data_array - mean
     
-    fig, ax = plt.subplots(figsize=figsize)
+    acorr_full = np.correlate(ndata, ndata, 'full')
+    acf_direct = acorr_full[len(ndata)-1:]  # Take positive lags
+    acf_direct = acf_direct / var / len(ndata)  # Proper normalization
+    acf_direct = acf_direct[:max_lag + 1]
+    lags_direct = np.arange(len(acf_direct))
+    print(f"Using direct method: first 10 values = {acf_direct[:10]}")
     
-    # Plot empirical autocorrelation
-    ax.plot(lags, autocorr, 'bo-', alpha=0.7, markersize=4, linewidth=1.5,
-            label='Empirical')
+    # Use the better method for plotting
+    if use_statsmodels:
+        acf_plot = acf_sm
+        lags_plot = lags_sm
+        method_name = "Statsmodels ACF"
+    else:
+        acf_plot = acf_direct
+        lags_plot = lags_direct
+        method_name = "Direct numpy.correlate"
+    
+    # Create figure with two subplots
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+    
+    # Plot 1: Linear scale - show the decay clearly
+    ax1.plot(lags_plot, acf_plot, 'bo-', alpha=0.8, markersize=4, linewidth=1.5,
+            markerfacecolor='steelblue', label=f'Empirical ({method_name})')
     
     # Plot theoretical autocorrelation if H is provided
     if H is not None:
-        theoretical_autocorr = 0.5 * ((lags + 1)**(2*H) - 2*lags**(2*H) + np.abs(lags - 1)**(2*H))
-        theoretical_autocorr[0] = 1.0  # Set lag 0 to 1
-        theoretical_autocorr = theoretical_autocorr / theoretical_autocorr[0]  # Normalize if needed
+        theoretical_acf = np.zeros(len(lags_plot))
+        for k in range(len(lags_plot)):
+            if k == 0:
+                theoretical_acf[k] = 1.0
+            else:
+                theoretical_acf[k] = 0.5 * (abs(k + 1)**(2*H) - 2*abs(k)**(2*H) + abs(k - 1)**(2*H))
         
-        ax.plot(lags, theoretical_autocorr, 'r--', linewidth=2,
+        ax1.plot(lags_plot, theoretical_acf, 'r--', linewidth=2, alpha=0.8,
                 label=f'Theoretical (H={H:.2f})')
     
-    ax.axhline(y=0, color='k', linestyle='-', alpha=0.3)
-    ax.set_xlabel('Lag', fontsize=12)
-    ax.set_ylabel('Autocorrelation', fontsize=12)
-    ax.set_title('Autocorrelation Function', fontsize=14, fontweight='bold')
-    ax.grid(True, alpha=0.3)
-    ax.legend()
+    ax1.axhline(y=0, color='k', linestyle='-', alpha=0.3)
+    ax1.set_xlabel('Lag', fontsize=12)
+    ax1.set_ylabel('Autocorrelation', fontsize=12)
+    ax1.set_title('Autocorrelation Function (Linear Scale)', fontsize=14, fontweight='bold')
+    ax1.grid(True, alpha=0.3)
+    ax1.legend()
+    
+    # Add text box showing first few values
+    if H is not None and H > 0.5:
+        color_status = 'lightgreen' if acf_plot[1] > 0.1 else 'lightcoral'
+        status_text = 'GOOD: Shows long-range dependence' if acf_plot[1] > 0.1 else 'BAD: No long-range dependence'
+    else:
+        color_status = 'lightblue'
+        status_text = 'Short-range dependence expected'
+    
+    values_text = f"""First 5 lags:
+Lag 1: {acf_plot[1]:.4f}
+Lag 2: {acf_plot[2]:.4f}
+Lag 3: {acf_plot[3]:.4f}
+Lag 4: {acf_plot[4]:.4f}
+Lag 5: {acf_plot[5]:.4f}
+
+{status_text}"""
+    
+    ax1.text(0.98, 0.98, values_text, transform=ax1.transAxes,
+            verticalalignment='top', horizontalalignment='right',
+            bbox=dict(boxstyle='round', facecolor=color_status, alpha=0.8),
+            fontsize=10)
+    
+    # Plot 2: Log-log plot to show power law decay
+    ax2.set_xscale('log')
+    ax2.set_yscale('log')
+    
+    # Only plot positive values for log scale
+    positive_mask = acf_plot[1:] > 0
+    positive_lags = lags_plot[1:][positive_mask]
+    positive_acf = acf_plot[1:][positive_mask]
+    
+    if len(positive_acf) > 0:
+        ax2.plot(positive_lags, positive_acf, 'bo-', alpha=0.8, markersize=4, 
+                linewidth=1.5, markerfacecolor='steelblue', label=f'Empirical ({method_name})')
+        
+        # Add power law reference line
+        if H is not None and len(positive_lags) > 5:
+            # Use asymptotic power law: ρ(k) ~ k^(2H-2)
+            ref_lags = positive_lags
+            power_law = ref_lags**(2*H - 2)
+            # Scale to match empirical data at lag 10 (or closest available)
+            if len(positive_lags) > 5:
+                scale_idx = min(5, len(positive_lags) - 1)
+                scale_factor = positive_acf[scale_idx] / power_law[scale_idx]
+                power_law *= scale_factor
+                ax2.plot(ref_lags, power_law, 'r--', linewidth=2, alpha=0.8,
+                        label=f'Power law: k^{{{2*H-2:.1f}}}')
+    
+    ax2.set_xlabel('Lag (log scale)', fontsize=12)
+    ax2.set_ylabel('Autocorrelation (log scale)', fontsize=12)
+    ax2.set_title('Log-Log Plot - Power Law Decay', fontsize=14, fontweight='bold')
+    ax2.grid(True, alpha=0.3)
+    ax2.legend()
     
     plt.tight_layout()
     return fig
@@ -479,17 +564,61 @@ range = {np.ptp(data):.4f}"""
     ax4.set_ylabel('Magnitude (log)')
     ax4.grid(True, alpha=0.3)
     
-    # 5. Autocorrelation
+    # 5. Autocorrelation (using statsmodels for reliability)
     ax5 = fig.add_subplot(gs[1, 2])
-    max_lag = min(len(data) // 8, 50)
-    autocorr = np.correlate(data, data, mode='full')
-    autocorr = autocorr[len(autocorr)//2:]
-    autocorr = autocorr / autocorr[0]
-    lags = np.arange(max_lag + 1)
-    ax5.plot(lags, autocorr[:max_lag + 1], 'purple', 'o-', alpha=0.8, markersize=3)
-    ax5.set_title('Autocorrelation', fontweight='bold')
+    
+    # Use statsmodels if available, otherwise fallback
+    try:
+        from statsmodels.tsa.stattools import acf as sm_acf
+        max_lag = min(len(data) // 4, 100)
+        autocorr = sm_acf(data, nlags=max_lag, fft=True)
+        lags = np.arange(len(autocorr))
+        method_label = "Statsmodels ACF"
+        print(f"plot_summary using statsmodels ACF: first 10 = {autocorr[:10]}")
+    except ImportError:
+        # Fallback to direct method
+        max_lag = min(len(data) // 4, 100)
+        data_array = np.array(data)
+        mean = np.mean(data_array)
+        var = np.var(data_array)
+        ndata = data_array - mean
+        
+        acorr_full = np.correlate(ndata, ndata, 'full')
+        autocorr = acorr_full[len(ndata)-1:]  # Take positive lags
+        autocorr = autocorr / var / len(ndata)  # Proper normalization
+        autocorr = autocorr[:max_lag + 1]
+        lags = np.arange(len(autocorr))
+        method_label = "Direct method"
+        print(f"plot_summary using direct method: first 10 = {autocorr[:10]}")
+    
+    # Plot autocorrelation with clear markers
+    ax5.plot(lags, autocorr, 'purple', '-', alpha=0.8, linewidth=2, label=method_label)
+    ax5.plot(lags[::5], autocorr[::5], 'purple', 'o', alpha=0.9, markersize=4)  # Show every 5th point clearly
+    
+    # Add status indicator
+    if H is not None and H > 0.5:
+        if autocorr[1] > 0.1:
+            status_text = f"✓ SLOW DECAY (H={H:.1f})"
+            title_color = 'green'
+        else:
+            status_text = f"✗ FAST DECAY (H={H:.1f})"
+            title_color = 'red'
+    else:
+        status_text = f"Expected fast decay (H={H:.1f})" if H else "Autocorrelation"
+        title_color = 'blue'
+    
+    ax5.set_title(f'Autocorrelation\n{status_text}', fontweight='bold', color=title_color, fontsize=10)
     ax5.set_ylabel('ρ(lag)')
+    ax5.axhline(y=0, color='k', linestyle='-', alpha=0.3)
     ax5.grid(True, alpha=0.3)
+    
+    # Add text showing key values
+    if len(autocorr) > 10:
+        values_text = f"ρ(1)={autocorr[1]:.3f}\nρ(5)={autocorr[5]:.3f}\nρ(10)={autocorr[10]:.3f}"
+        ax5.text(0.02, 0.98, values_text, transform=ax5.transAxes,
+                verticalalignment='top', 
+                bbox=dict(boxstyle='round', facecolor='lightyellow', alpha=0.9),
+                fontsize=9)
     
     # 6. Histogram
     ax6 = fig.add_subplot(gs[2, 0])
