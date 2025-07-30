@@ -277,22 +277,30 @@ def autocorrelation_function(data: np.ndarray, max_lag: Optional[int] = None) ->
     if max_lag is None:
         max_lag = len(data) // 4
     
-    # Normalize data
-    data_normalized = data - np.mean(data)
+    # Proper autocorrelation calculation using numpy.correlate
+    data = np.array(data)
     
-    # Compute full autocorrelation
-    autocorr_full = np.correlate(data_normalized, data_normalized, mode='full')
+    # Mean and variance
+    mean = np.mean(data)
+    var = np.var(data)
     
-    # Take positive lags only
-    mid = len(autocorr_full) // 2
-    autocorr = autocorr_full[mid:mid + max_lag + 1]
+    # Normalized data (subtract mean)
+    ndata = data - mean
     
-    # Normalize by variance (lag 0)
-    autocorr = autocorr / autocorr[0]
+    # Full autocorrelation using numpy.correlate
+    acorr_full = np.correlate(ndata, ndata, 'full')
     
-    lags = np.arange(max_lag + 1)
+    # Take positive lags (from center to end)
+    acorr = acorr_full[len(ndata)-1:]
     
-    return lags, autocorr
+    # Proper normalization: divide by variance and length
+    acorr = acorr / var / len(ndata)
+    
+    # Limit to requested max_lag
+    acorr = acorr[:max_lag + 1]
+    lags = np.arange(len(acorr))
+    
+    return lags, acorr
 
 
 def power_spectral_density(data: np.ndarray, method: str = 'periodogram') -> Tuple[np.ndarray, np.ndarray]:
