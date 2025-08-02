@@ -7,23 +7,20 @@ import pywt
 from scipy.fft import fft as scipy_fft, ifft as scipy_ifft, fftfreq
 
 
-def fgn(H, L):
+def fgn(H, L, length=1):
     """
-    Generate a fractional Gaussian noise (fGn) time series.
-    
-    Uses Cholesky decomposition for L < 2^20 (more stable, exact).
-    Uses Davies-Harte method for L >= 2^20 (more efficient for large datasets).
+    Generate fractional Gaussian noise using circulant embedding method.
     
     Parameters:
         H (float): Hurst exponent (0 < H < 1)
         L (int): Length of the time series
+        length (float): Length of realization (default=1)
         
     Returns:
         np.ndarray: Array of shape (L,) representing fractional Gaussian noise
         
     Raises:
         ValueError: If H is not in (0, 1)
-        UserWarning: If L is not a power of two (for Davies-Harte method)
     """
     if not (0 < H < 1):
         raise ValueError(f'Hurst exponent H must be in (0, 1), got {H}')
@@ -35,130 +32,88 @@ def fgn(H, L):
     if L == 1:
         return np.array([np.random.randn()])
     
-    # Use Cholesky method as primary approach for L < 2^20 (1,048,576)
-    # This is more numerically stable and exact
-    if L < 2**20:
-        return _fgn_simple(H, L)
-    
-    # For very large datasets (L >= 2^20), use Davies-Harte for efficiency
-    # Check if L is a power of two and warn if not
-    if L > 1 and (L & (L - 1)) != 0:
-        import warnings
-        # Find the next power of two for suggestion
-        next_power_of_two = 1 << (L - 1).bit_length()
-        prev_power_of_two = next_power_of_two >> 1
-        
+    # Check if L is a power of two and warn if not (for FFT efficiency)
+    import warnings
+    if L > 0 and (L & (L - 1)) != 0:  # Check if not power of two
+        # Find nearby powers of two
+        lower_power = 1 << (L - 1).bit_length() - 1
+        higher_power = 1 << (L - 1).bit_length()
         warnings.warn(
-            f'Length L={L} is not a power of two. The Davies-Harte method uses FFT operations '
-            f'which are most efficient with power-of-two lengths (e.g., {prev_power_of_two}, {next_power_of_two}). '
-            f'Non-power-of-two lengths will result in slower FFT computations and may cause '
-            f'the circulant embedding matrix to have a larger size (2*(L-1)={2*(L-1)}), '
-            f'potentially leading to increased memory usage and computation time. '
-            f'Consider using a nearby power of two for optimal performance.',
-            UserWarning,
-            stacklevel=2
+            f"Length {L} is not a power of two. FFT operations are most efficient "
+            f"with power-of-two lengths. Consider using {lower_power}, {higher_power} "
+            f"or other powers of two for optimal performance.",
+            UserWarning
         )
-    
-    # Davies-Harte method for large datasets
-    # Reference: Wood & Chan (1994), Dietrich & Newsam (1997)
-    
-    # Step 1: Compute autocovariance sequence γ(k) for fGn
-    gamma = np.zeros(L)
-    gamma[0] = 1.0  # γ(0) = variance = 1
-    
+
+    # 1) Create a time vector
+    t = np.linspace(0, length, L+1)
+
+    # 2) Create autocovariance function
+    gamma = lambda k: 0.5 * (abs(k+1)**(2*H) - 2*abs(k)**(2*H) + abs(k-1)**(2*H))
+
+    # 3) Create circulant vector of autocovariance
+    c = np.concatenate([np.array([gamma(k) for k in range(L+1)]), np.array([gamma(k) for k in range(L-1, 0, -1)])])
+
+    # 4) Compute eigenvalues using FFT
+    # Note: we need to consider how FFT/IFFT scales by default in Python! In Python, numpy FFT computes the
+    # unnormalized discrete Fourier transform.
+    eigenvals = np.fft.fft(c).real
+    if not np.allclose(np.fft.fft(c).imag, 0, atol=1e-10):
+        raise ValueError("FFT has significant imaginary component, check input vector")
+
+    if np.any(eigenvals < 0):
+        raise ValueError("FFT has negative eigenvalues, check circulant embedding")
+
+    # 5) Generate complex Gaussian vector
+    # Note: Vector of eigenvalues Lambda is going to be larger than L, length 2L, we truncate 
+    # the vector to L as needed
+    M = 2*L # FFT length
+
+    Z = np.zeros(M, dtype=np.complex128)
+
+    # Real parts
+    Z[0] = np.sqrt(eigenvals[0]) * np.random.normal()
+    Z[L] = np.sqrt(eigenvals[L]) * np.random.normal()
+
+    # 1 <= k < L
+    X = np.random.normal(0, 1, L-1)
+    Y = np.random.normal(0, 1, L-1)
+
     for k in range(1, L):
-        gamma[k] = 0.5 * ((k + 1)**(2*H) - 2*k**(2*H) + (k - 1)**(2*H))
-    
-    # Step 2: Construct circulant embedding matrix
-    m = 2 * L
-    c = np.zeros(m)
-    c[:L] = gamma
-    c[L] = 0
-    c[L+1:] = gamma[L-1:0:-1]
-    
-    # Step 3: Compute eigenvalues with FFT
-    eigenvals = np.real(scipy_fft(c))
-    
-    # Quick check - if Davies-Harte fails, fall back to Cholesky
-    if np.any(eigenvals < -1e-12):
-        return _fgn_simple(H, L)
+        Z[k] = np.sqrt(eigenvals[k] / 2) * (X[k-1] + 1j * Y[k-1])
+        Z[M-k] = np.conj(Z[k])
 
-    eigenvals = np.maximum(eigenvals, 0)
+    # 6) Inverse FFT to get fractional Gaussian noise
+    # Note: in Python IFFT introduces a factor of 1/M (total path length of 2L) which will mess
+    # up the scaling and give incorrect variance of fractional Gaussian noise. We need to scale
+    # by sqrt(M). Moreover, the scheme assumes unit variance in the inverse FFT so we also 
+    # scale by (length/L)**H to have correct time scaling
+
+    fGn = np.fft.ifft(Z).real[:L] * (length/L) ** H * np.sqrt(M)
     
-    # Step 4: Generate Hermitian symmetric complex Gaussian noise
-    u = np.random.randn(m)
-    v = np.random.randn(m)
-    Z = np.zeros(m, dtype=complex)
-    Z[0] = u[0]
-    
-    if m % 2 == 0:
-        Z[m // 2] = u[m // 2]
-        for k in range(1, m // 2):
-            Z[k] = (u[k] + 1j * v[k]) / np.sqrt(2)
-            Z[m - k] = (u[k] - 1j * v[k]) / np.sqrt(2)
-    else:
-        for k in range(1, (m + 1) // 2):
-            Z[k] = (u[k] + 1j * v[k]) / np.sqrt(2)
-            Z[m - k] = (u[k] - 1j * v[k]) / np.sqrt(2)
-    
-    # Step 5: Scale by square root of eigenvalues
-    W = Z * np.sqrt(eigenvals)
-    
-    # Step 6: Inverse FFT to get the result
-    X = scipy_ifft(W)
-    fgn_series = np.real(X[:L])
-    
-    # Step 7: Normalize to ensure unit variance
-    actual_var = np.var(fgn_series)
-    if actual_var > 1e-12:
-        fgn_series = fgn_series / np.sqrt(actual_var)
-    
-    return fgn_series
+    return fGn
 
 
-def _fgn_simple(H, L):
-    """Fallback simple fGn generation method."""
-    # Simple method using covariance matrix (slower but more stable)
-    n = np.arange(L)
-    i, j = np.meshgrid(n, n, indexing='ij')
-    C = 0.5 * (np.abs(i + 1)**(2*H) + np.abs(j + 1)**(2*H) - np.abs(i - j)**(2*H))
-    
-    # Cholesky decomposition
-    try:
-        L_chol = np.linalg.cholesky(C)
-        Z = np.random.randn(L)
-        return L_chol @ Z
-    except np.linalg.LinAlgError:
-        # If Cholesky fails, use eigendecomposition
-        eigenvals, eigenvecs = np.linalg.eigh(C)
-        eigenvals = np.maximum(eigenvals, 1e-12)  # Ensure positive
-        Z = np.random.randn(L)
-        return eigenvecs @ (np.sqrt(eigenvals) * Z)
-
-
-def fbm(data):
+def fbm(H, L, length=1):
     """
-    Compute fractional Brownian motion (fBm) from fractional Gaussian noise (fGn).
+    Generate fractional Brownian motion directly.
     
     Parameters:
-        data (np.ndarray): 1D array of values (typically from fgn)
+        H (float): Hurst exponent (0 < H < 1)
+        L (int): Number of increments
+        length (float): Length of realization (default=1)
         
     Returns:
-        np.ndarray: Array of shape (len(data) + 1,) representing fractional Brownian motion
+        np.ndarray: Array of shape (L+1,) representing fractional Brownian motion
         
     Raises:
-        TypeError: If input is not 1D
+        ValueError: If H is not in (0, 1)
     """
-    data = np.asarray(data)
+    # Generate fGn first
+    fgn_data = fgn(H, L, length)
     
-    if data.ndim != 1:
-        raise TypeError(f"Input must be 1D array, got {data.ndim}D")
-    
-    if not np.issubdtype(data.dtype, np.number):
-        raise TypeError("Input must be numeric array")
-    
-    # start at 0
-    return np.cumsum(np.concatenate([[0], data]))
+    # Convert to fBm: cumulative sum with 0 at beginning
+    return np.concatenate([np.array([0]), np.cumsum(fgn_data)])
 
 
 def fft(data):
