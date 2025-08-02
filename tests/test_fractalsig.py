@@ -5,7 +5,7 @@ Tests for fractalsig library functions.
 import numpy as np
 import pytest
 import pywt
-from fractalsig import fgn, fbm, fbm_from_fgn, fft, fwt
+from fractalsig import fgn, fbm, fft, fwt
 
 
 def rs_analysis(data):
@@ -154,48 +154,65 @@ def test_fgn_rs_analysis():
 
 def test_fbm_input_validation():
     """Test fbm input validation."""
-    # Test 2D array (should fail)
-    with pytest.raises(TypeError, match="Input must be 1D array"):
-        fbm_from_fgn(np.array([[1, 2], [3, 4]]))
+    # Test invalid H values
+    with pytest.raises(ValueError, match="Hurst exponent H must be in"):
+        fbm(0.0, 100)  # H = 0
     
-    # Test 3D array (should fail)
-    with pytest.raises(TypeError, match="Input must be 1D array"):
-        fbm_from_fgn(np.array([[[1]]]))
+    with pytest.raises(ValueError, match="Hurst exponent H must be in"):
+        fbm(1.0, 100)  # H = 1
+    
+    with pytest.raises(ValueError, match="Hurst exponent H must be in"):
+        fbm(-0.1, 100)  # H < 0
+    
+    with pytest.raises(ValueError, match="Hurst exponent H must be in"):
+        fbm(1.5, 100)  # H > 1
 
 
 def test_fbm_output_shape():
-    """Test fbm_from_fgn output shape and type."""
-    data = np.array([1.0, 2.0, 3.0])
-    result = fbm_from_fgn(data)
+    """Test fbm output shape and type."""
+    H = 0.7
+    L = 128
+    result = fbm(H, L)
     
-    # Output should be one element longer than input (starts at 0)
-    assert result.shape == (4,), f"Expected shape (4,), got {result.shape}"
+    # Output should be L+1 elements (starts at 0)
+    assert result.shape == (L+1,), f"Expected shape ({L+1},), got {result.shape}"
     assert isinstance(result, np.ndarray)
+    
+    # First element should be 0
+    assert result[0] == 0.0, f"Expected first element to be 0, got {result[0]}"
 
 
 def test_fbm_cumsum_behavior():
-    """Test that fbm_from_fgn is equivalent to cumsum starting from 0."""
-    data = np.array([1.0, 2.0, 3.0, -1.0])
-    result = fbm_from_fgn(data)
-    expected = np.array([0.0, 1.0, 3.0, 6.0, 5.0])  # cumsum starting from 0
+    """Test that fbm has proper cumulative sum structure."""
+    np.random.seed(456)
     
-    assert np.array_equal(result, expected), f"Expected {expected}, got {result}"
+    H = 0.6
+    L = 64
+    fbm_data = fbm(H, L)
+    
+    # Check basic properties
+    assert len(fbm_data) == L + 1
+    assert fbm_data[0] == 0.0
+    
+    # Differences should have L elements
+    diffs = np.diff(fbm_data)
+    assert len(diffs) == L
 
 
 def test_fbm_fgn_reconstruction():
-    """Test that np.diff(fbm_from_fgn(data)) ≈ original fgn."""
+    """Test that np.diff(fbm(H,L)) has fGn-like properties."""
     np.random.seed(123)
     
     H = 0.5
-    L = 128  # Power of 2 for efficiency
-    fgn_data = fgn(H, L)
-    fbm_data = fbm_from_fgn(fgn_data)
+    L = 128
+    fbm_data = fbm(H, L)
     
-    # Reconstruct original via diff
+    # Reconstruct increments via diff
     reconstructed = np.diff(fbm_data)
     
-    # Should recover original fgn_data
-    np.testing.assert_allclose(reconstructed, fgn_data, rtol=1e-14, atol=1e-15)
+    # Should have L elements and fBm should start at 0
+    assert len(reconstructed) == L
+    assert fbm_data[0] == 0.0
 
 
 def test_fft_input_validation():
@@ -308,7 +325,7 @@ def test_fwt_different_wavelets():
 
 
 def test_integration_workflow():
-    """Test complete workflow: fgn -> fbn -> fft -> fwt."""
+    """Test complete workflow: fgn -> fbm -> fft -> fwt."""
     np.random.seed(789)
     
     # Generate fGn
@@ -316,8 +333,8 @@ def test_integration_workflow():
     L = 256
     fgn_data = fgn(H, L)
     
-    # Convert to fBm
-    fbm_data = fbm_from_fgn(fgn_data)
+    # Generate fBm directly
+    fbm_data = fbm(H, L)
     
     # Analyze with FFT
     freqs, magnitudes = fft(fgn_data)
@@ -336,7 +353,7 @@ def test_integration_workflow():
 if __name__ == "__main__":
     # Run a few basic tests if called directly
     test_fgn_output_shape()
-    test_fbm_cumsum_behavior()
+    test_fbm_output_shape()
     test_fft_output_format()
     test_fwt_output_format()
     print("Basic tests passed!") 

@@ -28,7 +28,7 @@ def demo_advanced_analysis():
     # Generate test data
     np.random.seed(42)
     H_true = 0.7
-    L = 4096  # Use longer series for clearer autocorrelation patterns
+    L = 8192  # Use even longer series for better statistical accuracy
     
     print(f"1. Generating fGn with H={H_true}, L={L}")
     fgn_data = fgn(H_true, L)
@@ -108,7 +108,7 @@ def demo_advanced_plotting():
     print("   Saved: fgn_detailed.png")
     
     # fBm plot
-    fbm_data = fbm(fgn_data)
+    fbm_data = fbm(H, L)
     fig3 = plot_fbm(fbm_data, H=0.7, show_scaling=True)
     fig3.savefig('fbm_detailed.png', dpi=150, bbox_inches='tight')
     print("   Saved: fbm_detailed.png")

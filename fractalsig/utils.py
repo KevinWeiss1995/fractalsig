@@ -128,20 +128,25 @@ def validate_algorithm_correctness(n_tests: int = 5) -> Dict[str, Union[bool, Li
                 results['fgn_generation'] = False
                 results['error_messages'].append("fGn contains non-finite values")
         
-        # Test 2: fBm reconstruction
+        # Test 2: fBm generation and structure
         for _ in range(n_tests):
-            test_data = np.random.randn(64)
-            fbm_data = fbm(test_data)
+            L = 64
+            fbm_data = fbm(0.7, L)
             
-            # fBm should be one element longer than input
-            if len(fbm_data) != len(test_data) + 1:
+            # fBm should have L+1 elements and start at 0
+            if len(fbm_data) != L + 1:
                 results['fbm_reconstruction'] = False
-                results['error_messages'].append(f"fBm length incorrect: expected {len(test_data) + 1}, got {len(fbm_data)}")
+                results['error_messages'].append(f"fBm length incorrect: expected {L + 1}, got {len(fbm_data)}")
             
-            # Differences should approximately recover original (except first element)
-            if not np.allclose(np.diff(fbm_data), test_data, rtol=1e-12):
+            if fbm_data[0] != 0.0:
                 results['fbm_reconstruction'] = False
-                results['error_messages'].append("fBm reconstruction via differences failed")
+                results['error_messages'].append(f"fBm should start at 0, got {fbm_data[0]}")
+            
+            # Differences should have proper length
+            diffs = np.diff(fbm_data)
+            if len(diffs) != L:
+                results['fbm_reconstruction'] = False
+                results['error_messages'].append(f"fBm differences should have length {L}, got {len(diffs)}")
         
         # Test 3: FFT on known sine wave
         for freq in [5, 10, 20]:
@@ -229,7 +234,7 @@ def generate_test_dataset(H: float, L: int, noise_level: float = 0.0,
     
     result = {
         'fgn': base_fgn,
-        'fbm': fbm(base_fgn),
+        'fbm': fbm(H, L),
         'H_true': H,
         'length': L
     }

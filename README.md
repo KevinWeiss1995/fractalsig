@@ -50,7 +50,7 @@ L = 1024  # Length (power of 2 recommended for optimal FFT performance)
 fgn_data = fgn(H, L)
 
 # Convert to fractional Brownian motion
-fbm_data = fbm(fgn_data)
+fbm_data = fbm_from_fgn(fgn_data)
 
 # Analyze with FFT
 freqs, magnitudes = fft(fgn_data)
@@ -68,7 +68,15 @@ Generate fractional Gaussian noise using the Davies-Harte method.
 - **L**: Length of time series (power of 2 recommended)
 - **Returns**: Array of fractional Gaussian noise
 
-### fbm(data)
+### fbm(H, L, length=1)
+Generate fractional Brownian motion directly.
+
+- **H**: Hurst exponent (0 < H < 1)
+- **L**: Number of increments
+- **length**: Length of realization (default=1)
+- **Returns**: fBm array (length = L + 1, starts at 0)
+
+### fbm_from_fgn(data)
 Compute fractional Brownian motion from fractional Gaussian noise.
 
 - **data**: Input fGn data

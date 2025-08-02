@@ -9,23 +9,93 @@ import warnings
 from scipy.fft import fft, fftfreq
 
 
-def rs_analysis(data: np.ndarray, max_lag: Optional[int] = None) -> Tuple[float, np.ndarray, np.ndarray]:
+def detect_signal_type(data: np.ndarray, threshold: float = 0.1) -> str:
+    """
+    Detect if signal is fGn (stationary) or fBm (non-stationary/integrated).
+    
+    Uses variance ratio test: fBm should have increasing variance with window size,
+    while fGn should have roughly constant variance.
+    
+    Parameters:
+        data: Input time series
+        threshold: Sensitivity threshold for detection
+        
+    Returns:
+        'fgn' or 'fbm'
+    """
+    if len(data) < 100:
+        # For short series, assume input type based on range
+        data_range = np.max(data) - np.min(data)
+        data_std = np.std(data)
+        if data_range > 5 * data_std:
+            return 'fbm'  # Likely integrated (large range relative to std)
+        else:
+            return 'fgn'  # Likely stationary
+    
+    # Variance ratio test for longer series
+    window_sizes = [len(data)//8, len(data)//4, len(data)//2]
+    variances = []
+    
+    for window_size in window_sizes:
+        if window_size < 10:
+            continue
+        n_windows = len(data) // window_size
+        window_vars = []
+        for i in range(n_windows):
+            window = data[i*window_size:(i+1)*window_size]
+            window_vars.append(np.var(window))
+        if window_vars:
+            variances.append(np.mean(window_vars))
+    
+    if len(variances) < 2:
+        return 'fgn'  # Default assumption
+    
+    # Check if variance increases significantly with window size (fBm behavior)
+    variance_trend = np.polyfit(range(len(variances)), variances, 1)[0]
+    variance_ratio = variances[-1] / variances[0] if variances[0] > 0 else 1
+    
+    if variance_trend > threshold * np.mean(variances) or variance_ratio > 2:
+        return 'fbm'
+    else:
+        return 'fgn'
+
+
+def rs_analysis(data: np.ndarray, max_lag: Optional[int] = None, 
+                signal_type: Optional[str] = None) -> Tuple[float, np.ndarray, np.ndarray]:
     """
     Perform Rescaled Range (R/S) analysis to estimate Hurst exponent.
+    
+    Automatically detects if input is fGn or fBm and applies appropriate preprocessing.
     
     Parameters:
         data: Time series data
         max_lag: Maximum lag for analysis (default: len(data)//4)
+        signal_type: 'fgn', 'fbm', or None for auto-detection
         
     Returns:
         Tuple of (estimated_H, window_sizes, rs_values)
     """
+    data = np.asarray(data).flatten()
+    
+    # Auto-detect signal type if not specified
+    if signal_type is None:
+        signal_type = detect_signal_type(data)
+    
+    # Preprocess based on signal type
+    if signal_type == 'fbm':
+        # For fBm, analyze the increments (which should be fGn)
+        analysis_data = np.diff(data)
+        # Note: For fBm increments, we expect the same H as the original fBm
+    else:
+        # For fGn, analyze directly
+        analysis_data = data
+    
     if max_lag is None:
-        max_lag = len(data) // 4
+        max_lag = len(analysis_data) // 4
     
     # Generate window sizes (logarithmic spacing)
     min_window = 8
-    max_window = min(max_lag, len(data) // 2)
+    max_window = min(max_lag, len(analysis_data) // 2)
     
     if max_window < min_window:
         raise ValueError(f"Data too short for R/S analysis. Need at least {min_window*2} points")
@@ -37,15 +107,15 @@ def rs_analysis(data: np.ndarray, max_lag: Optional[int] = None) -> Tuple[float,
     rs_values = []
     
     for window_size in window_sizes:
-        if window_size >= len(data):
+        if window_size >= len(analysis_data):
             continue
             
         # Number of non-overlapping windows
-        n_segments = len(data) // window_size
+        n_segments = len(analysis_data) // window_size
         rs_segment_values = []
         
         for i in range(n_segments):
-            segment = data[i * window_size:(i + 1) * window_size]
+            segment = analysis_data[i * window_size:(i + 1) * window_size]
             
             # Calculate mean
             mean_segment = np.mean(segment)
@@ -147,13 +217,17 @@ def dfa_analysis(data: np.ndarray, min_window: int = 8, max_window: Optional[int
     return H_estimate, valid_window_sizes, fluctuations
 
 
-def wavelet_hurst_estimation(data: np.ndarray, wavelet: str = 'db4') -> Tuple[float, Dict]:
+def wavelet_hurst_estimation(data: np.ndarray, wavelet: str = 'db4', 
+                            signal_type: Optional[str] = None) -> Tuple[float, Dict]:
     """
     Estimate Hurst exponent using wavelet-based method.
+    
+    Automatically detects if input is fGn or fBm and applies appropriate preprocessing.
     
     Parameters:
         data: Time series data
         wavelet: Wavelet type to use
+        signal_type: 'fgn', 'fbm', or None for auto-detection
         
     Returns:
         Tuple of (estimated_H, analysis_info)
@@ -163,9 +237,24 @@ def wavelet_hurst_estimation(data: np.ndarray, wavelet: str = 'db4') -> Tuple[fl
     except ImportError:
         raise ImportError("PyWavelets is required for wavelet-based Hurst estimation")
     
-    # Perform wavelet decomposition directly on fGn data
-    # Using the standard approach for stationary fractional processes
-    coeffs = pywt.wavedec(data, wavelet, mode='periodization')
+    data = np.asarray(data).flatten()
+    
+    # Auto-detect signal type if not specified
+    if signal_type is None:
+        signal_type = detect_signal_type(data)
+    
+    # Preprocess based on signal type
+    if signal_type == 'fbm':
+        # For fBm, analyze the increments (which should be fGn)
+        analysis_data = np.diff(data)
+        # Note: For fBm increments, we expect the same H as the original fBm
+    else:
+        # For fGn, analyze directly
+        analysis_data = data
+    
+    # Perform wavelet decomposition on the appropriate data
+    # Using the standard approach for stationary fractional processes (fGn)
+    coeffs = pywt.wavedec(analysis_data, wavelet, mode='periodization')
     
     # Calculate energy at each scale
     energies = []
@@ -198,7 +287,7 @@ def wavelet_hurst_estimation(data: np.ndarray, wavelet: str = 'db4') -> Tuple[fl
     log_energies = np.log2(energies)
     
     slope = np.polyfit(log_scales, log_energies, 1)[0]
-    # Try the alternative formula for wavelet energy scaling
+    # Formula for wavelet energy scaling with fGn (stationary increments)
     H_estimate = (1 - slope) / 2
     
     analysis_info = {
@@ -206,7 +295,9 @@ def wavelet_hurst_estimation(data: np.ndarray, wavelet: str = 'db4') -> Tuple[fl
         'energies': energies,
         'slope': slope,
         'wavelet': wavelet,
-        'n_scales': len(scales)
+        'n_scales': len(scales),
+        'detected_type': signal_type,
+        'preprocessing': 'increments' if signal_type == 'fbm' else 'none'
     }
     
     return H_estimate, analysis_info

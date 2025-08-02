@@ -384,7 +384,7 @@ def plot_autocorrelation(data: np.ndarray, max_lag: Optional[int] = None,
         matplotlib Figure object
     """
     if max_lag is None:
-        max_lag = min(len(data) // 4, 150)
+        max_lag = min(len(data) // 8, 60)  # Reduced for cleaner plots
     
     # Method 1: Statsmodels (most reliable)
     try:
@@ -518,7 +518,7 @@ def plot_summary(data: np.ndarray, H: Optional[float] = None,
     Returns:
         matplotlib Figure object
     """
-    from .core import fbm, fft, fwt  # Import here to avoid circular import
+    from .core import fft, fwt  # Import here to avoid circular import
     
     fig = plt.figure(figsize=figsize)
     
@@ -548,7 +548,8 @@ range = {np.ptp(data):.4f}"""
     
     # 3. fBm (cumulative sum)
     ax3 = fig.add_subplot(gs[1, 0])
-    fbm_data = fbm(data)
+    # Convert fGn to fBm for plotting: cumsum starting from 0
+    fbm_data = np.concatenate([np.array([0]), np.cumsum(data)])
     ax3.plot(fbm_data, 'darkred', alpha=0.8, linewidth=1.5)
     ax3.set_title('Fractional Brownian Motion', fontweight='bold')
     ax3.set_ylabel('fBm Value')
@@ -570,14 +571,14 @@ range = {np.ptp(data):.4f}"""
     # Use statsmodels if available, otherwise fallback
     try:
         from statsmodels.tsa.stattools import acf as sm_acf
-        max_lag = min(len(data) // 4, 100)
+        max_lag = min(len(data) // 8, 50)  # Reduced for cleaner display
         autocorr = sm_acf(data, nlags=max_lag, fft=True)
         lags = np.arange(len(autocorr))
         method_label = "Statsmodels ACF"
         print(f"plot_summary using statsmodels ACF: first 10 = {autocorr[:10]}")
     except ImportError:
         # Fallback to direct method
-        max_lag = min(len(data) // 4, 100)
+        max_lag = min(len(data) // 8, 50)  # Reduced for cleaner display
         data_array = np.array(data)
         mean = np.mean(data_array)
         var = np.var(data_array)
@@ -640,39 +641,27 @@ range = {np.ptp(data):.4f}"""
     ax7.set_ylabel('Coefficient')
     ax7.grid(True, alpha=0.3)
     
-    # 8. R/S analysis (simplified)
+    # 8. R/S analysis (using proper rs_analysis function)
     ax8 = fig.add_subplot(gs[2, 2])
     try:
-        # Quick R/S analysis for a few window sizes
-        window_sizes = [16, 32, 64, 128]
-        rs_values = []
-        for ws in window_sizes:
-            if ws >= len(data):
-                continue
-            window_data = data[:ws]
-            mean_data = np.mean(window_data)
-            cumdev = np.cumsum(window_data - mean_data)
-            R = np.max(cumdev) - np.min(cumdev)
-            S = np.std(window_data, ddof=1)
-            if S > 0:
-                rs_values.append(R / S)
+        from .analysis import rs_analysis
+        H_rs, window_sizes, rs_values = rs_analysis(data)
         
         if len(rs_values) > 1:
-            valid_ws = window_sizes[:len(rs_values)]
-            ax8.loglog(valid_ws, rs_values, 'mo-', alpha=0.8, markersize=6)
-            # Fit and show estimated H
-            if len(rs_values) >= 2:
-                H_est = np.polyfit(np.log(valid_ws), np.log(rs_values), 1)[0]
-                ax8.set_title(f'R/S Analysis (H≈{H_est:.2f})', fontweight='bold')
-            else:
-                ax8.set_title('R/S Analysis', fontweight='bold')
+            ax8.loglog(window_sizes, rs_values, 'mo-', alpha=0.8, markersize=4, linewidth=1.5)
+            
+            # Plot fitted line
+            rs_fitted = window_sizes**H_rs * rs_values[0] / window_sizes[0]**H_rs
+            ax8.loglog(window_sizes, rs_fitted, 'r--', linewidth=2, alpha=0.7)
+            
+            ax8.set_title(f'R/S Analysis (H={H_rs:.3f})', fontweight='bold')
         else:
             ax8.text(0.5, 0.5, 'Insufficient data\nfor R/S analysis', 
                     transform=ax8.transAxes, ha='center', va='center')
             ax8.set_title('R/S Analysis', fontweight='bold')
-    except:
-        ax8.text(0.5, 0.5, 'R/S analysis\nfailed', 
-                transform=ax8.transAxes, ha='center', va='center')
+    except Exception as e:
+        ax8.text(0.5, 0.5, f'R/S analysis\nfailed: {str(e)[:20]}...', 
+                transform=ax8.transAxes, ha='center', va='center', fontsize=8)
         ax8.set_title('R/S Analysis', fontweight='bold')
     
     ax8.set_ylabel('R/S')
